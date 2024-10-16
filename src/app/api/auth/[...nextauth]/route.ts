@@ -6,7 +6,7 @@ import User from '@/models/User';
 import dbConnect from '@/lib/db';
 import { signJwtAccessToken } from '@/lib/jwt';
 
- const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -16,19 +16,24 @@ import { signJwtAccessToken } from '@/lib/jwt';
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          return null;
+          throw new Error('Missing email or password.');
         }
 
         await dbConnect();
 
         const user = await User.findOne({ email: credentials.email }).select('+password');
         if (!user) {
-          return null;
+          throw new Error('No user found with this email.');
+        }
+
+        // Check if the user registered with Google
+        if (user.provider === 'google') {
+          throw new Error('This account uses Google Sign-In. Please sign in with Google.');
         }
 
         const isPasswordCorrect = await bcrypt.compare(credentials.password, user.password);
         if (!isPasswordCorrect) {
-          return null;
+          throw new Error('Invalid email or password.');
         }
 
         const { password: _, ...userWithoutPassword } = user.toObject();
@@ -63,52 +68,66 @@ import { signJwtAccessToken } from '@/lib/jwt';
       }
       return session;
     },
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile, credentials }) {
+      await dbConnect();
+
+      // Google Sign-In Attempt
       if (account?.provider === 'google') {
-        await dbConnect();
-        
-        let existingUser = await User.findOne({ googleId: profile.sub });
-        if (!existingUser && profile.email) {
-          existingUser = await User.findOne({ email: profile.email });
-        }
+        const existingUser = await User.findOne({ email: profile?.email });
 
         if (existingUser) {
-          // Update existing user
-          existingUser.provider = 'google';
-          existingUser.googleId = profile.sub;
-          if (profile.email && !existingUser.email) {
-            existingUser.email = profile.email;
+          // If the user exists but registered with credentials
+          if (existingUser.provider === 'credentials') {
+            throw new Error('This account uses credentials. Please sign in with your email and password.');
           }
-          if (profile.name && !existingUser.username) {
-            existingUser.username = profile.name;
+
+          // If user exists but doesn't have a Google ID, update the user
+          if (!existingUser.googleId) {
+            existingUser.provider = 'google';
+            existingUser.googleId = profile?.sub;
+            existingUser.isEmailVerified = true;
+            if (profile?.name && !existingUser.username) {
+              existingUser.username = profile?.name;
+            }
+            if (profile?.picture && !existingUser.profileImage) {
+              existingUser.profileImage = profile?.picture;
+            }
+            await existingUser.save();
           }
-          if (profile.picture && !existingUser.profileImage) {
-            existingUser.profileImage = profile.picture;
-          }
-          existingUser.isEmailVerified = true;
-          await existingUser.save();
-          user.id = existingUser.googleId;
+
+          user.id = existingUser._id;
           user.googleId = existingUser.googleId;
         } else {
-          // Create new user
+          // Create a new user if they do not exist
           const newUser = await User.create({
-            username: profile.name || `user_${profile.sub}`,
-            email: profile.email,
+            username: profile?.name || `user_${profile?.sub}`,
+            email: profile?.email,
             provider: 'google',
-            googleId: profile.sub,
+            googleId: profile?.sub,
             isEmailVerified: true,
-            profileImage: profile.picture,
+            profileImage: profile?.picture,
             role: 'user',
           });
-          user.id = newUser.googleId;
+          user.id = newUser._id;
           user.googleId = newUser.googleId;
         }
       }
+
+      // Credentials Sign-In Attempt
+      if (account?.provider === 'credentials') {
+        const existingUser = await User.findOne({ email: credentials?.email });
+
+        if (existingUser && existingUser.provider === 'google') {
+          throw new Error('This account uses Google Sign-In. Please sign in with Google.');
+        }
+      }
+
       return true;
     },
   },
   pages: {
     signIn: '/signin',
+    error: '/error', // Custom error page
   },
   session: {
     strategy: 'jwt',

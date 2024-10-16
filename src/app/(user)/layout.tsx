@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "@/app/globals.css";
 import Link from 'next/link';
-import Search from '@/components/Search';
-import MobileMenu from "@/components/MobileMenu";
-import DynamicSidebar from '@/components/DynamicSidebar';
-import { Providers } from "@/app/provider";  // Import the new Providers component
+import { Providers } from "@/app/provider"; // Wraps with context
+import Header from '@/components/Header';
+import DynamicSidebar from '@/components/DynamicSidebar'; // Import the sidebar
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,26 +21,24 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        {/* Wrap application in providers for context access */}
         <Providers>
           <div className="flex h-screen bg-gray-100">
             {/* Sidebar for desktop */}
             <div className="hidden md:block">
               <aside className="w-64 bg-white shadow-md h-full">
                 <div className="p-4">
-                  <Link href="/" className="text-2xl font-bold text-gray-800">Our Store</Link>
+                  <Link href="/" className="text-2xl font-bold text-gray-800">
+                    Our Store
+                  </Link>
                 </div>
-                <DynamicSidebar />
+                <DynamicSidebar /> {/* Ensure this is within Providers */}
               </aside>
             </div>
 
             {/* Main content */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              <header className="bg-white shadow">
-                <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                  <MobileMenu />
-                  <Search />
-                </div>
-              </header>
+              <Header />
               <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
                   {children}

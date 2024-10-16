@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs';
 import User from '@/models/User';
 import dbConnect from '@/lib/db';
 import { signJwtAccessToken } from '@/lib/jwt';
-import { cookies } from 'next/headers'; // Import cookies utility from Next.js
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +14,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    if (user.provider === 'google') {
+      return NextResponse.json({ error: 'This account uses Google Sign-In. Please sign in with Google.' }, { status: 400 });
+    }
+
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -23,13 +26,12 @@ export async function POST(req: Request) {
     const { password: _, ...userWithoutPassword } = user.toObject();
     const accessToken = signJwtAccessToken(userWithoutPassword);
 
-    // Set the JWT as an HTTP-only cookie
     const response = NextResponse.json({ user: userWithoutPassword });
     response.cookies.set('accessToken', accessToken, {
-      httpOnly: true, // HTTP-only so it's not accessible via JavaScript
-      secure: process.env.NODE_ENV === 'production', // Set secure flag in production
-      path: '/', // Cookie is available site-wide
-      maxAge: 60 * 60 * 24 * 7, // 7 days expiration
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     return response;

@@ -1,3 +1,5 @@
+// File Path: src/app/admin/products/edit/[id]/page.tsx
+
 'use client';
 
 import React, { useState, useEffect } from "react";
@@ -17,6 +19,15 @@ import { useToast } from "@/components/ui/use-toast";
 import { useRouter, useParams } from 'next/navigation';
 import CloudinaryImageUpload from "@/components/CloudinaryImageUpload";
 import Link from "next/link";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface IProduct {
   _id: string;
@@ -69,35 +80,18 @@ async function updateProduct(
   return response.json();
 }
 
-async function checkTitleExists(title: string): Promise<boolean> {
-  const response = await fetch('/api/products/check-title', {
-    method: "POST",
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ title })
-  });
-  if (!response.ok) throw new Error("Failed to check title");
-  const data = await response.json();
-  return data.exists;
-}
-
 export default function EditProduct() {
-  const [currentProduct, setCurrentProduct] = useState<Partial<IProduct>>({
-    title: "",
-    description: "",
-    guide: "",
-    guideEnabled: false,
-    imageUrl: "",
-    region: "",
-    instantDelivery: false,
-    importantNote: "",
-    customFields: [],
-    subProducts: [],
-    isIDBased: false,
-  });
+  const [currentProduct, setCurrentProduct] = useState<Partial<IProduct>>({});
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [titleExists, setTitleExists] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+  const [subProductIndex, setSubProductIndex] = useState<number | null>(null);
+  const [tempSubProduct, setTempSubProduct] = useState<Partial<ISubProduct>>({
+    name: "",
+    price: 0,
+    originalPrice: 0,
+    inStock: false,
+  });
   const { toast } = useToast();
   const router = useRouter();
   const params = useParams();
@@ -107,7 +101,7 @@ export default function EditProduct() {
     loadProduct();
   }, []);
 
-  async function loadProduct() {
+  const loadProduct = async () => {
     try {
       const product = await fetchProduct(id);
       setCurrentProduct(product);
@@ -118,64 +112,24 @@ export default function EditProduct() {
         variant: "destructive",
       });
     }
-  }
+  };
 
-  const handleInputChange = async (
+  const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setCurrentProduct((prev) => ({ ...prev, [name]: value }));
-    if (name === "title") {
-      const exists = await checkTitleExists(value);
-      setTitleExists(exists && value !== currentProduct.title);
-    }
   };
 
   const handleCheckboxChange = (name: string, checked: boolean) => {
     setCurrentProduct((prev) => ({ ...prev, [name]: checked }));
   };
 
-  const handleSubProductChange = (
-    index: number,
-    field: keyof ISubProduct,
-    value: string | number | boolean
-  ) => {
-    const updatedSubProducts = [...(currentProduct.subProducts || [])];
-    updatedSubProducts[index] = {
-      ...updatedSubProducts[index],
-      [field]: value,
-    };
-    setCurrentProduct((prev) => ({ ...prev, subProducts: updatedSubProducts }));
-  };
-
-  const addSubProduct = () => {
-    setCurrentProduct((prev) => ({
-      ...prev,
-      subProducts: [
-        ...(prev.subProducts || []),
-        { name: "", price: 0, originalPrice: 0, inStock: false },
-      ],
-    }));
-  };
-
-  const removeSubProduct = (index: number) => {
-    setCurrentProduct((prev) => ({
-      ...prev,
-      subProducts: (prev.subProducts || []).filter((_, i) => i !== index),
-    }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (titleExists) {
-      toast({
-        title: "Warning",
-        description: "A product with this title already exists.",
-        variant: "destructive",
-      });
-      return;
-    }
+
     try {
+      setIsSubmitting(true);
       const formData = new FormData();
       Object.entries(currentProduct).forEach(([key, value]) => {
         if (key === "customFields" || key === "subProducts" || key === "idFields") {
@@ -202,6 +156,8 @@ export default function EditProduct() {
         description: "Failed to update product. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -210,20 +166,39 @@ export default function EditProduct() {
     setImageFile(file); // Save the file to be appended to formData
   };
 
-  const addIdField = () => {
-    const updatedIdFields = [...(currentProduct.idFields || []), { label: "" }];
-    setCurrentProduct((prev) => ({ ...prev, idFields: updatedIdFields }));
+  const openSubProductDialog = (index: number | null = null) => {
+    if (index !== null) {
+      setTempSubProduct(currentProduct.subProducts?.[index] || {});
+      setSubProductIndex(index);
+    } else {
+      setTempSubProduct({ name: "", price: 0, originalPrice: 0, inStock: false });
+      setSubProductIndex(null);
+    }
+    setIsDialogOpen(true);
   };
 
-  const removeIdField = (fieldIndex: number) => {
-    const updatedIdFields = (currentProduct.idFields || []).filter((_, i) => i !== fieldIndex);
-    setCurrentProduct((prev) => ({ ...prev, idFields: updatedIdFields }));
+  const closeSubProductDialog = () => {
+    setIsDialogOpen(false);
+    setTempSubProduct({ name: "", price: 0, originalPrice: 0, inStock: false });
+    setSubProductIndex(null);
   };
 
-  const handleIdFieldChange = (fieldIndex: number, value: string) => {
-    const updatedIdFields = [...(currentProduct.idFields || [])];
-    updatedIdFields[fieldIndex].label = value;
-    setCurrentProduct((prev) => ({ ...prev, idFields: updatedIdFields }));
+  const handleSubProductSave = () => {
+    const updatedSubProducts = [...(currentProduct.subProducts || [])];
+    if (subProductIndex !== null) {
+      updatedSubProducts[subProductIndex] = tempSubProduct as ISubProduct;
+    } else {
+      updatedSubProducts.push(tempSubProduct as ISubProduct);
+    }
+    setCurrentProduct((prev) => ({ ...prev, subProducts: updatedSubProducts }));
+    closeSubProductDialog();
+  };
+
+  const removeSubProduct = (index: number) => {
+    setCurrentProduct((prev) => ({
+      ...prev,
+      subProducts: (prev.subProducts || []).filter((_, i) => i !== index),
+    }));
   };
 
   return (
@@ -232,102 +207,106 @@ export default function EditProduct() {
       <form id="productForm" onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="title">Product Title</Label>
-          <Input id="title" name="title" value={currentProduct.title} onChange={handleInputChange} required />
-          {titleExists && (
-            <p className="text-red-500 mt-1">A product with this title already exists.</p>
-          )}
+          <Input id="title" name="title" value={currentProduct.title || ""} onChange={handleInputChange} required />
         </div>
         <div>
           <Label htmlFor="description">Description</Label>
-          <Textarea id="description" name="description" value={currentProduct.description} onChange={handleInputChange} required />
+          <Textarea id="description" name="description" value={currentProduct.description || ""} onChange={handleInputChange} required />
         </div>
         <div>
           <Label htmlFor="guideEnabled">Enable Guide</Label>
-          <Checkbox id="guideEnabled" checked={currentProduct.guideEnabled} onCheckedChange={(checked) => handleCheckboxChange('guideEnabled', checked as boolean)} />
+          <Checkbox id="guideEnabled" checked={currentProduct.guideEnabled || false} onCheckedChange={(checked) => handleCheckboxChange('guideEnabled', checked as boolean)} />
         </div>
         {currentProduct.guideEnabled && (
           <div>
             <Label htmlFor="guide">Guide</Label>
-            <Textarea id="guide" name="guide" value={currentProduct.guide} onChange={handleInputChange} />
+            <Textarea id="guide" name="guide" value={currentProduct.guide || ""} onChange={handleInputChange} />
           </div>
         )}
         <div>
           <Label htmlFor="image">Product Image</Label>
-          <CloudinaryImageUpload onImageUpload={handleImageUpload} currentImageUrl={currentProduct.imageUrl} />
+          <CloudinaryImageUpload onImageUpload={handleImageUpload} currentImageUrl={currentProduct.imageUrl || ""} />
         </div>
         <div>
           <Label htmlFor="region">Region</Label>
-          <Input id="region" name="region" value={currentProduct.region} onChange={handleInputChange} required />
+          <Input id="region" name="region" value={currentProduct.region || ""} onChange={handleInputChange} required />
         </div>
         <div className="flex items-center space-x-2">
-          <Checkbox id="instantDelivery" checked={currentProduct.instantDelivery} onCheckedChange={(checked) => handleCheckboxChange('instantDelivery', checked as boolean)} />
+          <Checkbox id="instantDelivery" checked={currentProduct.instantDelivery || false} onCheckedChange={(checked) => handleCheckboxChange('instantDelivery', checked as boolean)} />
           <Label htmlFor="instantDelivery">Instant Delivery</Label>
         </div>
         <div>
           <Label htmlFor="importantNote">Important Note</Label>
-          <Textarea id="importantNote" name="importantNote" value={currentProduct.importantNote} onChange={handleInputChange} />
-        </div>
-        <div>
-          <Label htmlFor="isIDBased">ID Based</Label>
-          <Select value={currentProduct.isIDBased ? 'yes' : 'no'} onValueChange={(value) => setCurrentProduct((prev) => ({ ...prev, isIDBased: value === 'yes' }))}>
-            <SelectTrigger>
-              <SelectValue placeholder="ID Based" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="yes">Yes</SelectItem>
-              <SelectItem value="no">No</SelectItem>
-            </SelectContent>
-          </Select>
-          {currentProduct.isIDBased && (
-            <div>
-              <Label>ID Fields</Label>
-              {currentProduct.idFields?.map((field, fieldIndex) => (
-                <div key={fieldIndex} className="flex items-center space-x-2">
-                  <Input placeholder="Field Label" value={field.label} onChange={(e) => handleIdFieldChange(fieldIndex, e.target.value)} />
-                  <Button type="button" onClick={() => removeIdField(fieldIndex)} variant="destructive">
-                    Remove
-                  </Button>
-                </div>
-              ))}
-              <Button type="button" onClick={addIdField}>
-                Add ID Field
-              </Button>
-            </div>
-          )}
+          <Textarea id="importantNote" name="importantNote" value={currentProduct.importantNote || ""} onChange={handleInputChange} />
         </div>
         <div>
           <Label>Sub-products</Label>
-          {currentProduct.subProducts?.map((subProduct, index) => (
-            <div key={index} className="space-y-2 mb-4 p-4 border rounded">
-              <Input placeholder="Sub-product Name" value={subProduct.name} onChange={(e) => handleSubProductChange(index, 'name', e.target.value)} />
-              <Input type="number" placeholder="Price" value={subProduct.price} onChange={(e) => handleSubProductChange(index, 'price', parseFloat(e.target.value))} />
-              <Input type="number" placeholder="Original Price" value={subProduct.originalPrice} onChange={(e) => handleSubProductChange(index, 'originalPrice', parseFloat(e.target.value))} />
-              <Select value={subProduct.inStock ? 'yes' : 'no'} onValueChange={(value) => handleSubProductChange(index, 'inStock', value === 'yes')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="In Stock" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yes">Yes</SelectItem>
-                  <SelectItem value="no">No</SelectItem>
-                </SelectContent>
-              </Select>
-              {subProduct.inStock && <Input type="number" placeholder="Stock Quantity" value={subProduct.stockQuantity} onChange={(e) => handleSubProductChange(index, 'stockQuantity', parseInt(e.target.value))} />}
-              <Button type="button" onClick={() => removeSubProduct(index)} variant="destructive">
-                Remove
-              </Button>
-            </div>
-          ))}
-          <Button type="button" onClick={addSubProduct}>
-            Add Sub-product
-          </Button>
+          <div className="mb-4">
+            <Button type="button" onClick={() => openSubProductDialog()}>Add Sub-product</Button>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {currentProduct.subProducts?.map((subProduct, index) => (
+              <div key={index} className="border rounded p-4">
+                <div className="font-bold">{subProduct.name}</div>
+                <div>Price: ${subProduct.price}</div>
+                <div>Original Price: ${subProduct.originalPrice}</div>
+                <div>In Stock: {subProduct.inStock ? 'Yes' : 'No'}</div>
+                <Button type="button" onClick={() => openSubProductDialog(index)} className="mt-2 mr-2">View Details</Button>
+                <Button type="button" onClick={() => removeSubProduct(index)} variant="destructive" className="mt-2">Delete</Button>
+              </div>
+            ))}
+          </div>
         </div>
-        <Button type="submit" form="productForm">
-          Save Product
+        <Button type="submit" form="productForm" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Save Product'}
         </Button>
         <Button className="ml-3">
           <Link href='/admin/products'> Go Back </Link>
         </Button>
       </form>
+
+      {/* Sub-product Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
+          <Button className="hidden">Trigger</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{subProductIndex !== null ? 'Edit' : 'Add'} Sub-product</DialogTitle>
+            <DialogDescription>
+              Fill out the details below to {subProductIndex !== null ? 'edit' : 'add'} a sub-product.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="subProductName">Sub-product Name</Label>
+              <Input id="subProductName" name="name" value={tempSubProduct.name || ""} onChange={(e) => setTempSubProduct(prev => ({ ...prev, name: e.target.value }))} required />
+            </div>
+            <div>
+              <Label htmlFor="subProductPrice">Price</Label>
+              <Input type="number" id="subProductPrice" name="price" value={tempSubProduct.price || 0} onChange={(e) => setTempSubProduct(prev => ({ ...prev, price: parseFloat(e.target.value) }))} required />
+            </div>
+            <div>
+              <Label htmlFor="subProductOriginalPrice">Original Price</Label>
+              <Input type="number" id="subProductOriginalPrice" name="originalPrice" value={tempSubProduct.originalPrice || 0} onChange={(e) => setTempSubProduct(prev => ({ ...prev, originalPrice: parseFloat(e.target.value) }))} />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="subProductInStock" checked={tempSubProduct.inStock || false} onCheckedChange={(checked) => setTempSubProduct(prev => ({ ...prev, inStock: checked as boolean }))} />
+              <Label htmlFor="subProductInStock">In Stock</Label>
+            </div>
+            {tempSubProduct.inStock && (
+              <div>
+                <Label htmlFor="subProductStockQuantity">Stock Quantity</Label>
+                <Input type="number" id="subProductStockQuantity" name="stockQuantity" value={tempSubProduct.stockQuantity || 0} onChange={(e) => setTempSubProduct(prev => ({ ...prev, stockQuantity: parseInt(e.target.value) }))} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSubProductSave}>Save</Button>
+            <Button onClick={closeSubProductDialog} variant="ghost" className="ml-2">Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

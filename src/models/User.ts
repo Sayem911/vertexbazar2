@@ -1,3 +1,5 @@
+// File Path: src/models/User.ts
+
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IUser extends Document {
@@ -14,6 +16,7 @@ export interface IUser extends Document {
   verifyTokenExpiry?: Date;
   profileImage?: string;
   accessToken?: string;
+  vbPoints: number; // Adding VB Points field
 }
 
 const UserSchema = new Schema<IUser>({
@@ -29,7 +32,8 @@ const UserSchema = new Schema<IUser>({
   verifyToken: { type: String },
   verifyTokenExpiry: { type: Date },
   profileImage: { type: String },
-  accessToken: { type: String }, 
+  accessToken: { type: String },
+  vbPoints: { type: Number, default: 0 }, // Default VB Points to 0
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

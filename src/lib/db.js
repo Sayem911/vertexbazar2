@@ -1,5 +1,5 @@
-// File: lib/db.ts
-import mongoose from "mongoose";
+// File: src/lib/db.js
+const mongoose = require('mongoose');
 
 const dbConnect = async () => {
   try {
@@ -26,4 +26,4 @@ const dbConnect = async () => {
   }
 };
 
-export default dbConnect;
+module.exports = dbConnect;

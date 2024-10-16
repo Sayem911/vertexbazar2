@@ -6,7 +6,10 @@ import { signJwtAccessToken } from '@/lib/jwt';
 
 export async function POST(req: Request) {
   try {
+    // Connect to the database
     await dbConnect();
+
+    // Parse the request body
     const { 
       username, 
       email, 
@@ -16,42 +19,41 @@ export async function POST(req: Request) {
       profileImage 
     } = await req.json();
 
-    // Ensure that at least one of email or mobile number is provided
+    // Check if email or mobile number is provided
     if (!email && !mobileNumber) {
       return NextResponse.json({ 
         error: 'You must provide either an email or a mobile number.' 
       }, { status: 400 });
     }
 
-    // Set email or mobileNumber to undefined if not provided
-    const normalizedEmail = email || undefined;
-    const normalizedMobileNumber = mobileNumber || undefined;
+    // Normalize email and mobile number if provided
+    const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
+    const normalizedMobileNumber = mobileNumber ? mobileNumber.trim() : undefined;
 
-    // Construct the query to check for existing users
-    const existingUserQuery: any = { username };
-    if (normalizedEmail !== undefined) {
-      existingUserQuery.email = normalizedEmail;
+    // Check if a user with the provided email already exists
+    if (normalizedEmail) {
+      const existingUserWithEmail = await User.findOne({ email: normalizedEmail });
+      if (existingUserWithEmail) {
+        return NextResponse.json({ 
+          error: 'An account with this email already exists. Please sign in or use a different email.' 
+        }, { status: 400 });
+      }
     }
-    if (normalizedMobileNumber !== undefined) {
-      existingUserQuery.mobileNumber = normalizedMobileNumber;
-    }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ $or: [existingUserQuery] });
-
-    if (existingUser) {
-      let errorMessage = 'User already exists with this ';
-      if (existingUser.email === normalizedEmail) errorMessage += 'email';
-      else if (existingUser.username === username) errorMessage += 'username';
-      else if (existingUser.mobileNumber === normalizedMobileNumber) errorMessage += 'mobile number';
-      console.log(errorMessage);
-      return NextResponse.json({ error: errorMessage }, { status: 400 });
+    // Check if a user with the provided mobile number already exists
+    if (normalizedMobileNumber) {
+      const existingUserWithMobile = await User.findOne({ mobileNumber: normalizedMobileNumber });
+      if (existingUserWithMobile) {
+        return NextResponse.json({ 
+          error: 'An account with this mobile number already exists. Please sign in or use a different mobile number.' 
+        }, { status: 400 });
+      }
     }
 
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create a new user
+    // Create a new user document
     const newUser = new User({
       username,
       email: normalizedEmail,
@@ -64,20 +66,26 @@ export async function POST(req: Request) {
       isMobileVerified: false
     });
 
-    // Save the user to the database
+    // Save the new user to the database
     await newUser.save();
 
-    // Generate JWT token
+    // Remove the password from the user object before signing the token
     const { password: _, ...userWithoutPassword } = newUser.toObject();
+
+    // Generate JWT token
     const accessToken = signJwtAccessToken(userWithoutPassword);
 
     // Create a response and set the JWT as an HTTP-only cookie
-    const response = NextResponse.json({ user: userWithoutPassword }, { status: 201 });
-   
+    const response = NextResponse.json({ 
+      user: userWithoutPassword,
+      accessToken
+    }, { status: 201 });
+
+    response.headers.set('Set-Cookie', `accessToken=${accessToken}; HttpOnly; Path=/; Secure; SameSite=Strict`);
 
     return response;
-  } catch (error:any) {
-    console.error('Error during user signup:', error.message, error.stack);
+  } catch (error: any) {
+    console.error('Error during user signup:', error.message);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

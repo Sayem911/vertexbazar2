@@ -1,60 +1,52 @@
+// File: src/app/user/profile/page.tsx
 
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
-
-interface UserProfile {
-  username: string;
-  email: string;
-  role: string;
-  provider: string;
-}
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 const ProfilePage = () => {
   const { data: session, status } = useSession();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (status === "unauthenticated") {
+      // Redirect unauthenticated users to the sign-in page
       router.push('/signin');
-    } else if (status === 'authenticated' && session) {
-      fetchUserProfile();
     }
-  }, [status, session, router]);
+  }, [status, router]);
 
-  const fetchUserProfile = async () => {
-    try {
-      const response = await axios.get('/api/user/profile', {
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`
-        }
-      });
-      setUserProfile(response.data.user);
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      // Handle error (e.g., show error message)
-    }
-  };
-
-  if (status === 'loading') {
-    return <div>Loading...</div>;
+  if (status === "loading") {
+    // Display loading indicator while checking authentication status
+    return <div className="text-center mt-8">Loading...</div>;
   }
 
-  if (!userProfile) {
-    return <div>Loading profile...</div>;
+  if (status === "unauthenticated" || !session?.user) {
+    // Fallback message in case redirection fails
+    return <div className="text-center mt-8 text-red-500">You need to sign in to view your profile.</div>;
   }
 
+  // Render the profile page for authenticated users
   return (
-    <div>
-      <h1>Profile</h1>
-      <p>Username: {userProfile.username}</p>
-      <p>Email: {userProfile.email}</p>
-      <p>Role: {userProfile.role}</p>
-      <p>Provider: {userProfile.provider}</p>
+    <div className="container mx-auto px-4 py-8">
+      <Card className="max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl">Profile Information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <strong>Name:</strong> {session.user.name || "N/A"}
+            </div>
+            <div>
+              <strong>Email:</strong> {session.user.email || "N/A"}
+            </div>
+            {/* Add any other user-specific information here */}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

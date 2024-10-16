@@ -1,4 +1,5 @@
-"use client"
+// File: src/app/products/page.tsx
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -6,7 +7,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-// Define the Product interface based on your Mongoose model
 interface IProduct {
   _id: string;
   title: string;
@@ -18,6 +18,7 @@ interface IProduct {
   guide?: string;
   guideEnabled: boolean;
   subProducts?: Array<{
+    _id: string;
     name: string;
     price: number;
     inStock: boolean;
@@ -78,8 +79,8 @@ const ProductList: React.FC = () => {
               {product.subProducts && product.subProducts.length > 0 && (
                 <div className="w-full mb-4">
                   <h4 className="font-semibold mb-2">Sub Products:</h4>
-                  {product.subProducts.map((subProduct, index) => (
-                    <div key={index} className="text-sm">
+                  {product.subProducts.map((subProduct) => (
+                    <div key={subProduct._id} className="text-sm">
                       {subProduct.name} - ${subProduct.price} 
                       {subProduct.inStock ? ' (In Stock)' : ' (Out of Stock)'}
                     </div>
@@ -87,8 +88,8 @@ const ProductList: React.FC = () => {
                 </div>
               )}
               <Link href={`/products/${product._id}`}>
-  <Button className="w-full">View Details</Button>
-</Link>
+                <Button className="w-full">View Details</Button>
+              </Link>
             </CardFooter>
           </Card>
         ))}

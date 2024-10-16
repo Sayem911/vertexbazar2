@@ -18,30 +18,9 @@ import { useRouter } from 'next/navigation';
 interface IProduct {
   _id: string;
   title: string;
-  description: string;
-  imageUrl: string;
   region: string;
   instantDelivery: boolean;
-  importantNote?: string;
-  customFields: ICustomField[];
-  subProducts: ISubProduct[];
-  isIDBased: boolean;
-  idFields?: { label: string }[];
-}
-
-interface ICustomField {
-  name: string;
-  type: "text" | "number" | "boolean";
-  required: boolean;
-  label: string;
-}
-
-interface ISubProduct {
-  name: string;
-  price: number;
-  originalPrice: number;
-  stockQuantity?: number;
-  inStock: boolean;
+  subProductsCount: number; // Changed for better readability
 }
 
 const API_URL = "/api/products";
@@ -59,38 +38,36 @@ async function deleteProduct(id: string): Promise<void> {
 
 export default function AdminProducts() {
   const [products, setProducts] = useState<IProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const { toast } = useToast();
   const router = useRouter();
 
   useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setIsLoading(true);
+        const fetchedProducts = await fetchProducts();
+        setProducts(fetchedProducts);
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to load products. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
     loadProducts();
-  }, []);
-
-  async function loadProducts() {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const fetchedProducts = await fetchProducts();
-      setProducts(fetchedProducts);
-    } catch (err) {
-      setError("Failed to load products. Please try again.");
-      toast({
-        title: "Error",
-        description: "Failed to load products. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  }, [toast]);
 
   const handleDelete = async (productId: string) => {
+    const originalProducts = [...products];
+    setProducts(products.filter((p) => p._id !== productId)); // Optimistic update
+
     try {
       await deleteProduct(productId);
-      setProducts(products.filter((p) => p._id !== productId));
       toast({
         title: "Success",
         description: "Product deleted successfully.",
@@ -101,6 +78,7 @@ export default function AdminProducts() {
         description: "Failed to delete product. Please try again.",
         variant: "destructive",
       });
+      setProducts(originalProducts); // Revert on failure
     }
   };
 
@@ -129,15 +107,6 @@ export default function AdminProducts() {
         />
       </div>
 
-      {error && (
-        <div
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-          role="alert"
-        >
-          <p>{error}</p>
-        </div>
-      )}
-
       <Table>
         <TableHeader>
           <TableRow>
@@ -149,25 +118,33 @@ export default function AdminProducts() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredProducts.map((product) => (
-            <TableRow key={product._id}>
-              <TableCell>{product.title}</TableCell>
-              <TableCell>{product.region}</TableCell>
-              <TableCell>{product.instantDelivery ? "Yes" : "No"}</TableCell>
-              <TableCell>{product.subProducts.length}</TableCell>
-              <TableCell>
-                <Button onClick={() => router.push(`/admin/products/edit/${product._id}`)} className="mr-2">
-                  Edit
-                </Button>
-                <Button
-                  onClick={() => handleDelete(product._id)}
-                  variant="destructive"
-                >
-                  Delete
-                </Button>
+          {filteredProducts.length > 0 ? (
+            filteredProducts.map((product) => (
+              <TableRow key={product._id}>
+                <TableCell>{product.title}</TableCell>
+                <TableCell>{product.region}</TableCell>
+                <TableCell>{product.instantDelivery ? "Yes" : "No"}</TableCell>
+                <TableCell>{product.subProductsCount}</TableCell>
+                <TableCell>
+                  <Button onClick={() => router.push(`/admin/products/edit/${product._id}`)} className="mr-2">
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(product._id)}
+                    variant="destructive"
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center">
+                No products found.
               </TableCell>
             </TableRow>
-          ))}
+          )}
         </TableBody>
       </Table>
     </div>

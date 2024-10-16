@@ -1,3 +1,5 @@
+// File: src/components/DynamicSidebar.tsx
+
 'use client';
 
 import { useEffect } from 'react';
