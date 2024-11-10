@@ -16,6 +16,14 @@ interface ISubProduct {
   price: number;
   originalPrice: number;
   inStock: boolean;
+  stockQuantity?: number;
+}
+
+interface ICustomField {
+  name: string;
+  type: 'text' | 'number' | 'boolean';
+  label: string;
+  required: boolean;
 }
 
 interface IProduct {
@@ -29,8 +37,9 @@ interface IProduct {
   guide?: string;
   guideEnabled: boolean;
   subProducts: ISubProduct[];
+  customFields: ICustomField[];
   isIDBased: boolean;
-  idFields: string[];
+  idFields?: { label: string }[];
 }
 
 const ProductPage = () => {
@@ -39,6 +48,7 @@ const ProductPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedSubProduct, setSelectedSubProduct] = useState<ISubProduct | null>(null);
   const [idValues, setIdValues] = useState<Record<string, string>>({});
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | number | boolean>>({});
   const [notification, setNotification] = useState<string | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -68,11 +78,17 @@ const ProductPage = () => {
   }, [productId]);
 
   const handleSubProductSelect = (subProduct: ISubProduct) => {
-    setSelectedSubProduct(subProduct);
+    if (subProduct.inStock) {
+      setSelectedSubProduct(subProduct);
+    }
   };
 
   const handleIdFieldChange = (field: string, value: string) => {
     setIdValues(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCustomFieldChange = (field: string, value: string | number | boolean) => {
+    setCustomFieldValues(prev => ({ ...prev, [field]: value }));
   };
 
   const handleAddToCart = () => {
@@ -142,6 +158,7 @@ const ProductPage = () => {
                     variant={selectedSubProduct?._id === subProduct._id ? "default" : "outline"}
                     className="w-full justify-between"
                     onClick={() => handleSubProductSelect(subProduct)}
+                    disabled={!subProduct.inStock} // Disable if not in stock
                   >
                     <span>{subProduct.name}</span>
                     <span>৳{subProduct.price.toFixed(2)}</span>
@@ -151,15 +168,58 @@ const ProductPage = () => {
               {product.isIDBased && (
                 <div className="mt-4">
                   <h3 className="font-semibold mb-2">ID Information:</h3>
-                  {product.idFields.map((field) => (
-                    <div key={field} className="mb-2">
-                      <Label htmlFor={field}>{field}</Label>
+                  {product.idFields?.map((field) => (
+                    <div key={field.label} className="mb-2">
+                      <Label htmlFor={field.label}>{field.label}</Label>
                       <Input
-                        id={field}
-                        value={idValues[field] || ''}
-                        onChange={(e) => handleIdFieldChange(field, e.target.value)}
-                        placeholder={`Enter ${field}`}
+                        id={field.label}
+                        value={idValues[field.label] || ''}
+                        onChange={(e) => handleIdFieldChange(field.label, e.target.value)}
+                        placeholder={`Enter ${field.label}`}
                       />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {product.customFields.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="font-semibold mb-2">Custom Fields:</h3>
+                  {product.customFields.map((field) => (
+                    <div key={field.name} className="mb-2">
+                      <Label htmlFor={field.name}>{field.label}</Label>
+
+                      {field.type === 'text' && (
+                        <Input
+                          id={field.name}
+                          value={(customFieldValues[field.name] as string) || ''}
+                          onChange={(e) => handleCustomFieldChange(field.name, e.target.value)}
+                          placeholder={`Enter ${field.label}`}
+                        />
+                      )}
+
+                      {field.type === 'number' && (
+                        <Input
+                          id={field.name}
+                          type="number"
+                          value={(customFieldValues[field.name] as number) || ''}
+                          onChange={(e) => handleCustomFieldChange(field.name, parseFloat(e.target.value))}
+                          placeholder={`Enter ${field.label}`}
+                        />
+                      )}
+
+                      {field.type === 'boolean' && (
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id={field.name}
+                            checked={!!customFieldValues[field.name]}
+                            onChange={(e) => handleCustomFieldChange(field.name, e.target.checked)}
+                          />
+                          <Label htmlFor={field.name} className="ml-2">
+                            {field.label}
+                          </Label>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -171,7 +231,7 @@ const ProductPage = () => {
                   <span>৳{selectedSubProduct?.price.toFixed(2) || '0.00'}</span>
                 </div>
               </div>
-              <Button className="w-full mt-4" onClick={handleAddToCart}>
+              <Button className="w-full mt-4" onClick={handleAddToCart} disabled={!selectedSubProduct}>
                 Add to Cart
               </Button>
             </div>

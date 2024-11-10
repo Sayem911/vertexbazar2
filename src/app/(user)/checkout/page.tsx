@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import io from 'socket.io-client';
+import { Loader2 } from "lucide-react";
+
 
 const socket = io('http://localhost:3001');
 
@@ -335,6 +337,7 @@ const CheckoutPage = () => {
 
             {/* Place Order Button */}
             <Button className="w-full mt-4" onClick={handlePlaceOrder}>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Place Order
             </Button>
           </CardContent>

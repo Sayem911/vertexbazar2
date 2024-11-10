@@ -1,34 +1,7 @@
-import mongoose, { Document, Model, Schema } from 'mongoose';
 
-export interface ISubProduct {
-  name: string;
-  price: number;
-  originalPrice: number;
-  stockQuantity?: number;
-  inStock: boolean; // New field for stock availability
-}
-
-export interface ICustomField {
-  name: string;
-  type: 'text' | 'number' | 'boolean';
-  required: boolean;
-  label: string;
-}
-
-export interface IProduct extends Document {
-  title: string;
-  description: string;
-  guide?: string;
-  guideEnabled: boolean;
-  imageUrl: string;
-  region: string;
-  instantDelivery: boolean;
-  importantNote?: string;
-  customFields: ICustomField[];
-  subProducts: ISubProduct[];
-  isIDBased: boolean; // New field for ID based input
-  idFields?: { label: string }[]; // New optional field for ID based input fields
-}
+// File: src/models/Product.ts
+import mongoose, { Model, Schema } from 'mongoose';
+import { IProduct, ICustomField, ISubProduct, ProductCategory, ProductPopularity } from '@/types/product';
 
 const CustomFieldSchema = new Schema<ICustomField>({
   name: { type: String, required: true },
@@ -42,11 +15,11 @@ const SubProductSchema = new Schema<ISubProduct>({
   price: { type: Number, required: true },
   originalPrice: { type: Number, required: true },
   stockQuantity: { type: Number },
-  inStock: { type: Boolean, required: true }, // New field for stock availability
+  inStock: { type: Boolean, required: true },
 });
 
 const ProductSchema = new Schema<IProduct>({
-  title: { type: String, required: true, unique: true }, // Set title to be unique
+  title: { type: String, required: true, unique: true },
   description: { type: String, required: true },
   guide: { type: String },
   guideEnabled: { type: Boolean, required: true },
@@ -56,9 +29,30 @@ const ProductSchema = new Schema<IProduct>({
   importantNote: { type: String },
   customFields: [CustomFieldSchema],
   subProducts: [SubProductSchema],
-  isIDBased: { type: Boolean, required: true }, // New field for ID based input
-  idFields: { type: [{ label: { type: String } }], required: false }, // New optional field for ID based input fields
+  isIDBased: { type: Boolean, required: true },
+  idFields: { type: [{ label: { type: String } }], required: false },
+  category: { 
+    type: String, 
+    enum: Object.values(ProductCategory),
+    required: true 
+  },
+  popularity: { 
+    type: String, 
+    enum: Object.values(ProductPopularity),
+    default: ProductPopularity.REGULAR 
+  },
+  countryCode: { 
+    type: String, 
+    required: true 
+  },
+  displayOrder: { 
+    type: Number, 
+    default: 0 
+  }
 });
+
+ProductSchema.index({ category: 1, popularity: 1, displayOrder: 1 });
+ProductSchema.index({ category: 1, countryCode: 1 });
 
 const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 

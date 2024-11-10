@@ -13,6 +13,7 @@ interface IUser {
   username: string;
   email: string;
   vbPoints: number;
+  provider: string;
 }
 
 const API_URL = "/api/users";
@@ -55,6 +56,7 @@ export default function ManageUsers() {
               <div className="font-bold">{user.username}</div>
               <div>Email: {user.email}</div>
               <div>VB Points: {user.vbPoints}</div>
+              <div>Provider: {user.provider}</div>
             </div>
             <div>
               <Button variant="default">

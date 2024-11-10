@@ -51,11 +51,11 @@ export default function SignUp() {
     }
 
     try {
-      const response = await axios.post('/api/signup', { username, email, password });
+      const response = await axios.post('/api/auth/signup', { username, email, password });
 
       toast.success("Sign up successful! Your account has been created successfully. You are now logged in.");
 
-      router.push('/auth/signin');
+      router.push('/signin');
     } catch (error: any) {
       if (error.response && error.response.data && error.response.data.error) {
         setErrorMessage(error.response.data.error);

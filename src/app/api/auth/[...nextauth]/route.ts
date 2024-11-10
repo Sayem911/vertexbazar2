@@ -27,7 +27,7 @@ const authOptions: NextAuthOptions = {
         }
 
         // Check if the user registered with Google
-        if (user.provider === 'google') {
+        if (user.provider === 'google'&& !user.password) {
           throw new Error('This account uses Google Sign-In. Please sign in with Google.');
         }
 

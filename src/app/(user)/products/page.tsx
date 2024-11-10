@@ -1,11 +1,19 @@
-// File: src/app/products/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface ISubProduct {
+  _id: string;
+  name: string;
+  price: number;
+  inStock: boolean;
+}
 
 interface IProduct {
   _id: string;
@@ -17,15 +25,118 @@ interface IProduct {
   importantNote?: string;
   guide?: string;
   guideEnabled: boolean;
-  subProducts?: Array<{
-    _id: string;
-    name: string;
-    price: number;
-    inStock: boolean;
-  }>;
+  category: 'GAME_CARD' | 'GAME_TOP_UP';
+  popularity: 'POPULAR' | 'NEW' | 'REGULAR';
+  displayOrder: number;
+  countryCode: string;
+  subProducts?: ISubProduct[];
 }
 
-const ProductList: React.FC = () => {
+interface ProductSectionProps {
+  title: string;
+  products: IProduct[];
+  isLoading?: boolean;
+  error?: string | null;
+}
+
+const ProductSkeleton = () => (
+  <Card className="bg-gray-800 border-gray-700">
+    <CardContent className="p-3">
+      <div className="space-y-3">
+        <Skeleton className="h-40 w-full bg-gray-700" />
+        <Skeleton className="h-4 w-3/4 bg-gray-700" />
+        <Skeleton className="h-4 w-1/2 bg-gray-700" />
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const ProductCard: React.FC<{ product: IProduct }> = ({ product }) => (
+  <Link href={`/products/${product._id}`}>
+    <Card className="bg-gray-800 border-gray-700 hover:border-gray-600 transition-all hover:shadow-lg cursor-pointer h-full">
+      <CardContent className="p-3">
+        <div className="relative aspect-square mb-2 overflow-hidden rounded-lg group">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.title}
+              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+              <span className="text-gray-400">No Image</span>
+            </div>
+          )}
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-sm font-medium text-white line-clamp-1">
+            {product.title}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {product.region}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {product.instantDelivery && (
+              <span className="inline-block bg-blue-900/50 text-blue-200 text-xs px-2 py-0.5 rounded">
+                Instant
+              </span>
+            )}
+            {product.subProducts && product.subProducts.length > 0 && (
+              <span className="inline-block bg-green-900/50 text-green-200 text-xs px-2 py-0.5 rounded">
+                From ${Math.min(...product.subProducts.map(sp => sp.price))}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </Link>
+);
+
+const ProductSection: React.FC<ProductSectionProps> = ({ 
+  title, 
+  products,
+  isLoading,
+  error
+}) => {
+  if (error) {
+    return (
+      <div className="text-red-400 p-4">
+        Error loading {title}: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-bold text-white uppercase tracking-wide">{title}</h2>
+        {products.length > 4 && (
+          <button className="flex items-center text-gray-400 hover:text-white text-sm transition-colors">
+            View More
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </button>
+        )}
+      </div>
+      <div className={cn(
+        "grid gap-4",
+        "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+      )}>
+        {isLoading ? (
+          Array(5).fill(0).map((_, index) => (
+            <ProductSkeleton key={index} />
+          ))
+        ) : (
+          products.map((product) => (
+            <ProductCard key={product._id} product={product} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,57 +156,83 @@ const ProductList: React.FC = () => {
     fetchProducts();
   }, []);
 
-  if (loading) return <div className="text-center mt-8">Loading...</div>;
-  if (error) return <div className="text-center mt-8 text-red-500">{error}</div>;
+  const filterProducts = (category: string, popularity: string) => {
+    return products.filter(product => 
+      product.category === category && 
+      product.popularity === popularity
+    ).sort((a, b) => a.displayOrder - b.displayOrder);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 p-6">
+        <div className="container mx-auto">
+          {['POPULAR GAME CARD', 'POPULAR GAME TOP-UP', 'NEW GAME CARD', 'NEW GAME TOP-UP'].map((title) => (
+            <ProductSection
+              key={title}
+              title={title}
+              products={[]}
+              isLoading={true}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const popularGameCards = filterProducts('GAME_CARD', 'POPULAR');
+  const popularTopUps = filterProducts('GAME_TOP_UP', 'POPULAR');
+  const newGameCards = filterProducts('GAME_CARD', 'NEW');
+  const newTopUps = filterProducts('GAME_TOP_UP', 'NEW');
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Products</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => (
-          <Card key={product._id} className="flex flex-col">
-            <CardHeader>
-              <CardTitle>{product.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex-grow">
-              {product.imageUrl && (
-                <img 
-                  src={product.imageUrl} 
-                  alt={product.title} 
-                  className="w-full h-48 object-cover mb-4 rounded"
-                />
-              )}
-              <p className="text-sm text-gray-600 mb-2">{product.description}</p>
-              <p className="text-sm"><strong>Region:</strong> {product.region}</p>
-              <p className="text-sm"><strong>Instant Delivery:</strong> {product.instantDelivery ? 'Yes' : 'No'}</p>
-              {product.importantNote && (
-                <p className="text-sm text-red-500 mt-2"><strong>Important Note:</strong> {product.importantNote}</p>
-              )}
-              {product.guideEnabled && product.guide && (
-                <p className="text-sm mt-2"><strong>Guide:</strong> {product.guide}</p>
-              )}
-            </CardContent>
-            <CardFooter className="flex flex-col items-start">
-              {product.subProducts && product.subProducts.length > 0 && (
-                <div className="w-full mb-4">
-                  <h4 className="font-semibold mb-2">Sub Products:</h4>
-                  {product.subProducts.map((subProduct) => (
-                    <div key={subProduct._id} className="text-sm">
-                      {subProduct.name} - ${subProduct.price} 
-                      {subProduct.inStock ? ' (In Stock)' : ' (Out of Stock)'}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Link href={`/products/${product._id}`}>
-                <Button className="w-full">View Details</Button>
-              </Link>
-            </CardFooter>
-          </Card>
-        ))}
+    <div className="min-h-screen bg-gray-900">
+      <div className="container mx-auto px-4 py-8">
+        {error ? (
+          <div className="text-red-400 text-center py-8">{error}</div>
+        ) : (
+          <>
+            {popularGameCards.length > 0 && (
+              <ProductSection 
+                title="Popular Game Card" 
+                products={popularGameCards}
+              />
+            )}
+            
+            {popularTopUps.length > 0 && (
+              <ProductSection 
+                title="Popular Game Top-up" 
+                products={popularTopUps}
+              />
+            )}
+            
+            {newGameCards.length > 0 && (
+              <ProductSection 
+                title="New Game Card" 
+                products={newGameCards}
+              />
+            )}
+            
+            {newTopUps.length > 0 && (
+              <ProductSection 
+                title="New Game Top-up" 
+                products={newTopUps}
+              />
+            )}
+
+            {!popularGameCards.length && 
+             !popularTopUps.length && 
+             !newGameCards.length && 
+             !newTopUps.length && (
+              <div className="text-gray-400 text-center py-8">
+                No products found
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 };
 
-export default ProductList;
+export default ProductsPage;

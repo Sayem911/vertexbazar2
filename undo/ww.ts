@@ -1,10 +1,21 @@
-// File Path: src/app/api/products/route.ts
+// File: src/app/api/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Product from '@/models/Product';
 import cloudinary, { CloudinaryUploadResult } from '@/lib/cloudinary';
 import streamifier from 'streamifier';
+
+export async function GET() {
+  try {
+    await dbConnect();
+    const products = await Product.find({});
+    return NextResponse.json(products, { status: 200 });
+  } catch (error: any) {
+    console.error("Error fetching products:", error);
+    return NextResponse.json({ message: 'Failed to load products', error: error.message }, { status: 500 });
+  }
+}
 
 const streamUpload = (buffer: Buffer): Promise<CloudinaryUploadResult> => {
   return new Promise((resolve, reject) => {
@@ -29,19 +40,15 @@ export async function POST(request: NextRequest) {
   const data = await request.formData();
   const title = data.get('title')?.toString();
   const description = data.get('description')?.toString();
-  const guide = data.get('guide')?.toString();
-  const guideEnabled = data.get('guideEnabled') === 'true';
+  const guide = data.get('guide')?.toString(); // Getting guide data
+  const guideEnabled = data.get('guideEnabled') === 'true'; // Getting guideEnabled data
   const region = data.get('region')?.toString();
   const instantDelivery = data.get('instantDelivery') === 'true';
   const importantNote = data.get('importantNote')?.toString();
-  const isIDBased = data.get('isIDBased') === 'true';
+  const isIDBased = data.get('isIDBased') === 'true'; // Getting isIDBased data
   const customFields = JSON.parse(data.get('customFields')?.toString() || '[]');
   const subProducts = JSON.parse(data.get('subProducts')?.toString() || '[]');
   const idFields = JSON.parse(data.get('idFields')?.toString() || '[]');
-  const category = data.get('category')?.toString();
-  const popularity = data.get('popularity')?.toString();
-  const countryCode = data.get('countryCode')?.toString();
-  const displayOrder = parseInt(data.get('displayOrder')?.toString() || '0');
   const image = data.get('image') as Blob;
 
   try {
@@ -68,52 +75,39 @@ export async function POST(request: NextRequest) {
       region,
       instantDelivery,
       importantNote,
-      isIDBased,
+      isIDBased, // Including isIDBased
       customFields,
       subProducts,
       idFields,
-      category,
-      popularity,
-      countryCode,
-      displayOrder
     });
 
     await newProduct.save();
 
     return NextResponse.json(newProduct, { status: 201 });
-  } catch (error: any) {
+  } catch (error:any) {
     console.error("Error creating product:", error);
     return NextResponse.json({ message: 'Failed to create product', error: error.message }, { status: 500 });
   }
 }
 
-export async function GET(request: NextRequest) {
+
+// File: src/app/api/products/check-title/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import dbConnect from '@/lib/db';
+import Product from '@/models/Product';
+
+export async function POST(request: NextRequest) {
+  await dbConnect();
+  const { title } = await request.json();
+
   try {
-    await dbConnect();
-    const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
-    const popularity = searchParams.get('popularity');
-    const countryCode = searchParams.get('countryCode');
-
-    let query: any = {};
-
-    if (category) {
-      query.category = category;
+    const existingProduct = await Product.findOne({ title });
+    if (existingProduct) {
+      return NextResponse.json({ exists: true }, { status: 200 });
+    } else {
+      return NextResponse.json({ exists: false }, { status: 200 });
     }
-    if (popularity) {
-      query.popularity = popularity;
-    }
-    if (countryCode) {
-      query.countryCode = countryCode;
-    }
-
-    const products = await Product.find(query)
-      .sort({ displayOrder: 1, createdAt: -1 })
-      .lean();
-
-    return NextResponse.json(products, { status: 200 });
   } catch (error: any) {
-    console.error("Error fetching products:", error);
-    return NextResponse.json({ message: 'Failed to load products', error: error.message }, { status: 500 });
+    return NextResponse.json({ message: 'Failed to check title', error: error.message }, { status: 500 });
   }
 }

@@ -2,20 +2,21 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from '@/components/ui/input';
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 
 const socket = io('http://localhost:3001'); // Connect to your backend server
 
 interface Order {
   _id: string;
-  orderId: string; // Add orderId field
+  orderId: string;
   userId: string;
   name: string;
   paymentMethod: string;
@@ -35,7 +36,9 @@ interface Order {
 
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [rejectionReason, setRejectionReason] = useState<{ [key: string]: string }>({});
+  const [rejectionReason, setRejectionReason] = useState<string>(''); // State for rejection reason
+  const [showRejectionDialog, setShowRejectionDialog] = useState<boolean>(false); // State to control dialog visibility
+  const [orderIdToReject, setOrderIdToReject] = useState<string | null>(null); // Order ID for rejection
 
   // Fetch orders from API
   const fetchOrders = async () => {
@@ -78,12 +81,9 @@ const AdminOrdersPage = () => {
       const updateData: any = {
         status: {
           value: newStatus,
-          rejectionReason: newStatus === 'Rejected' ? rejectionReason[orderId] || 'No reason provided' : '',
+          rejectionReason: newStatus === 'Rejected' ? rejectionReason || 'No reason provided' : '',
         },
       };
-
-      // Add logging to check the updateData
-      console.log("Updating order with data:", updateData);
 
       const response = await axios.patch(`/api/admin/order/${orderId}`, updateData);
       const updatedOrder = response.data;
@@ -94,9 +94,30 @@ const AdminOrdersPage = () => {
       );
       toast.success(`Order ${orderId} has been updated to ${newStatus}.`);
 
+      // Close modal and reset reason after rejection
+      setShowRejectionDialog(false);
+      setRejectionReason('');
+
     } catch (error) {
       console.error(`Failed to update order ${orderId}:`, error);
       toast.error(`Failed to update order ${orderId}.`);
+    }
+  };
+
+  // Open the rejection dialog and store the order ID
+  const openRejectionDialog = (orderId: string) => {
+    setOrderIdToReject(orderId);
+    setShowRejectionDialog(true);
+  };
+
+  // Handle rejection with reason
+  const handleRejectOrder = () => {
+    if (rejectionReason.trim() === '') {
+      toast.error('Rejection reason cannot be empty.');
+      return;
+    }
+    if (orderIdToReject) {
+      handleOrderStatusChange(orderIdToReject, 'Rejected');
     }
   };
 
@@ -127,14 +148,16 @@ const AdminOrdersPage = () => {
               <tbody>
                 {orders.map((order) => (
                   <tr key={order._id}>
-                    {/* Display orderId instead of _id */}
-                    <td className="border-b p-4">{order.orderId}</td> 
+                    <td className="border-b p-4">{order.orderId}</td>
                     <td className="border-b p-4">{order.name}</td>
                     <td className="border-b p-4">৳{order.totalAmount}</td>
                     <td className="border-b p-4">{order.paymentMethod}</td>
                     <td className="border-b p-4">{order.bkashTxnId || "N/A"}</td>
                     <td className="border-b p-4">{order.status.value}</td>
-                    <td className="border-b p-4">{order.status.value === 'Rejected' ? order.status.rejectionReason || 'N/A' : 'N/A'}</td>
+                    {/* Show rejection reason if the order is rejected */}
+                    <td className="border-b p-4">
+                      {order.status.value === 'Rejected' ? order.status.rejectionReason : 'N/A'}
+                    </td>
                     <td className="border-b p-4">
                       {order.status.value === 'Pending' && (
                         <>
@@ -146,27 +169,38 @@ const AdminOrdersPage = () => {
                           >
                             Approve
                           </Button>
-                          <div className="flex items-center">
-                            <Input
-                              type="text"
-                              placeholder="Rejection reason"
-                              value={rejectionReason[order._id] || ''}
-                              onChange={(e) => setRejectionReason({ ...rejectionReason, [order._id]: e.target.value })}
-                              className="mr-2"
-                            />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOrderStatusChange(order._id, 'Rejected')}
-                            >
-                              Reject
-                            </Button>
-                          </div>
+                          <Dialog open={showRejectionDialog} onOpenChange={setShowRejectionDialog}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm" onClick={() => openRejectionDialog(order._id)}>
+                                Reject
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Reject Order</DialogTitle>
+                              </DialogHeader>
+                              <Input
+                                type="text"
+                                placeholder="Rejection reason"
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                className="my-4"
+                              />
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setShowRejectionDialog(false)}>
+                                  Cancel
+                                </Button>
+                                <Button variant="default" onClick={handleRejectOrder}>
+                                  Confirm Rejection
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </>
                       )}
                       {order.status.value === 'Approved' && (
                         <>
-                          <span className="text-green-600 font-semibold">Approved (Confirmed)</span>
+                          <span className="text-green-600 font-semibold">Approved</span>
                           <Button
                             variant="outline"
                             size="sm"
@@ -179,8 +213,8 @@ const AdminOrdersPage = () => {
                       )}
                       {order.status.value === 'Rejected' && (
                         <>
-                        <span className="text-red-600 font-semibold">Rejected (Not Confirmed)</span>
-                        <Button
+                          <span className="text-red-600 font-semibold">Rejected</span>
+                          <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleOrderStatusChange(order._id, 'Pending')}

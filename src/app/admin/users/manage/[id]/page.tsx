@@ -80,7 +80,7 @@ export default function ManageUserById() {
         title: "Success",
         description: "User details updated successfully.",
       });
-      router.push("/admin/users");
+      router.push("/admin/users/manage");
     } catch (err) {
       toast({
         title: "Error",
@@ -163,7 +163,7 @@ export default function ManageUserById() {
           {isSubmitting ? "Saving..." : "Save Changes"}
         </Button>
         <Button className="ml-3">
-          <Link href="/admin/users">Go Back</Link>
+          <Link href="/admin/users/manage">Go Back</Link>
         </Button>
       </form>
     </div>
